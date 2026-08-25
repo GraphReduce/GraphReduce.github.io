@@ -9,7 +9,7 @@ Nanyang Technological University, Singapore
 
 **EMNLP 2026, Industry Track — Accepted (Poster)**
 
-📄 [Paper (PDF)](static/paper/graphreduce.pdf) · 🌐 **[Project page](https://graphreduce.github.io/GraphReduce/)**
+📄 [Paper (PDF)](static/paper/graphreduce.pdf) · 🌐 **[Project page](https://graphreduce.github.io/)**
 
 ---
 
@@ -49,7 +49,7 @@ static/paper/graphreduce.pdf    the paper
 ```
 
 To publish it: **Settings → Pages → Source: Deploy from a branch → `main` / `/ (root)`**.
-It will be live at `https://graphreduce.github.io/GraphReduce/`.
+It will be live at `https://graphreduce.github.io/`.
 
 ## Citation
 
