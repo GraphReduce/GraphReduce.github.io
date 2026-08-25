@@ -1,0 +1,860 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GraphReduce</title>
+<meta name="description" content="GraphReduce: coverage-preserving LLM aggregation for e-commerce review insights. EMNLP Industry Track.">
+<meta property="og:title" content="GraphReduce: Coverage-Preserving LLM Aggregation for E-commerce Review Insights">
+<meta property="og:description" content="Ranked, traceable product-level review insights with 100% tuple coverage and zero duplicate assignments. Jiang, Li, Zhang and Lin — EMNLP 2026 Industry Track.">
+<meta property="og:type" content="website">
+<meta property="og:image" content="static/images/teaser_small.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap">
+<style>
+/* ── tokens ────────────────────────────────────────────────────────────── */
+:root{
+  color-scheme: light;
+  --bg:#EDEFF3;
+  --surface:#FFFFFF;
+  --surface-2:#F5F7FA;
+  --ink:#12161C;
+  --ink-2:#49525F;
+  --muted:#646E7A;
+  --line:#DCE1E8;
+  --line-soft:#E9EDF2;
+  --accent:#E9A521;
+  --accent-ink:#8A5B00;
+  --accent-wash:#FBF1DC;
+  --series-1:#2a78d6;   /* kept / recall  — validated */
+  --series-2:#eb6834;   /* ndcg           — validated */
+  --loss:#e34948;       /* dropped        — validated */
+  --loss-wash:#FBECEC;
+  --shadow:0 1px 2px rgba(18,22,28,.05), 0 8px 24px -12px rgba(18,22,28,.18);
+  --radius:14px;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme: dark;
+    --bg:#0E1116;
+    --surface:#171B21;
+    --surface-2:#1D222A;
+    --ink:#E8ECF2;
+    --ink-2:#AEB8C4;
+    --muted:#818C99;
+    --line:#272E38;
+    --line-soft:#20262E;
+    --accent:#F0B84B;
+    --accent-ink:#F0B84B;
+    --accent-wash:#2A2318;
+    --series-1:#3987e5;
+    --series-2:#d95926;
+    --loss:#e66767;
+    --loss-wash:#2B1C1C;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 30px -14px rgba(0,0,0,.7);
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme: dark;
+  --bg:#0E1116; --surface:#171B21; --surface-2:#1D222A;
+  --ink:#E8ECF2; --ink-2:#AEB8C4; --muted:#818C99;
+  --line:#272E38; --line-soft:#20262E;
+  --accent:#F0B84B; --accent-ink:#F0B84B; --accent-wash:#2A2318;
+  --series-1:#3987e5; --series-2:#d95926; --loss:#e66767; --loss-wash:#2B1C1C;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 30px -14px rgba(0,0,0,.7);
+}
+
+*{box-sizing:border-box}
+html{scroll-behavior:smooth; scroll-padding-top:72px}
+body{
+  margin:0; background:var(--bg); color:var(--ink);
+  font-family:"Source Serif 4", Georgia, "Times New Roman", serif;
+  font-size:17px; line-height:1.66;
+  -webkit-font-smoothing:antialiased;
+}
+h1,h2,h3,h4{font-family:Archivo, "Helvetica Neue", Arial, sans-serif; font-weight:700; letter-spacing:-.018em; text-wrap:balance; margin:0}
+.mono,code,pre,th,.eyebrow,.chip,.btn,.tag,figcaption .fignum{font-family:"IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace}
+
+/* ── shell ─────────────────────────────────────────────────────────────── */
+.wrap{max-width:1080px; margin:0 auto; padding:0 22px}
+.prose{max-width:68ch}
+.prose p{margin:0 0 1.05em}
+.prose p:last-child{margin-bottom:0}
+a{color:inherit; text-decoration-color:color-mix(in srgb, var(--accent) 70%, transparent); text-underline-offset:3px}
+a:hover{text-decoration-color:var(--accent)}
+:focus-visible{outline:2px solid var(--series-1); outline-offset:3px; border-radius:6px}
+
+/* ── top bar ───────────────────────────────────────────────────────────── */
+.topbar{
+  position:sticky; top:0; z-index:50;
+  background:color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter:saturate(180%) blur(10px);
+  border-bottom:1px solid var(--line);
+}
+.topbar .wrap{display:flex; align-items:center; gap:18px; height:56px}
+.topbar .mark{font-family:Archivo,sans-serif; font-weight:700; font-size:15px; letter-spacing:-.02em; white-space:nowrap}
+.topbar .mark span{color:var(--accent-ink)}
+.topnav{display:flex; gap:16px; margin-left:auto; overflow-x:auto; scrollbar-width:none}
+.topnav::-webkit-scrollbar{display:none}
+.topnav a{
+  font-family:"IBM Plex Mono",monospace; font-size:11.5px; letter-spacing:.09em;
+  text-transform:uppercase; color:var(--ink-2); text-decoration:none; white-space:nowrap; padding:4px 0;
+  border-bottom:1.5px solid transparent;
+}
+.topnav a:hover{color:var(--ink); border-bottom-color:var(--accent)}
+
+/* ── hero ──────────────────────────────────────────────────────────────── */
+.hero{padding:64px 0 8px}
+.venue{
+  display:inline-flex; align-items:center; gap:9px; margin-bottom:22px;
+  font-family:"IBM Plex Mono",monospace; font-size:11.5px; letter-spacing:.1em; text-transform:uppercase;
+  color:var(--accent-ink); background:var(--accent-wash);
+  border:1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  padding:6px 12px; border-radius:999px;
+}
+.venue .dot{width:6px; height:6px; border-radius:50%; background:var(--accent)}
+h1.title{font-size:clamp(30px, 4.4vw, 48px); line-height:1.06; margin:0 0 6px; max-width:20ch}
+h1.title em{font-style:normal; color:var(--accent-ink)}
+.subtitle{font-size:clamp(18px,2.2vw,22px); color:var(--ink-2); max-width:52ch; margin:14px 0 30px; line-height:1.45}
+.authors{display:flex; flex-wrap:wrap; gap:6px 20px; font-size:16.5px; margin-bottom:6px}
+.authors a{text-decoration:none; border-bottom:1px solid transparent; padding-bottom:1px}
+.authors a:hover{border-bottom-color:var(--accent)}
+.authors b{font-weight:600}
+.authors sup{color:var(--accent-ink); font-size:.72em; font-family:"IBM Plex Mono",monospace}
+.affil{font-family:"IBM Plex Mono",monospace; font-size:12px; color:var(--muted); letter-spacing:.02em; margin-bottom:26px}
+
+.btnrow{display:flex; flex-wrap:wrap; gap:10px; margin-bottom:34px}
+.btn{
+  display:inline-flex; align-items:center; gap:9px; text-decoration:none;
+  font-size:12.5px; font-weight:500; letter-spacing:.02em;
+  padding:10px 16px; border-radius:999px;
+  background:var(--ink); color:var(--surface); border:1px solid var(--ink);
+  transition:transform .12s ease, opacity .12s ease;
+}
+.btn:hover{transform:translateY(-1px); opacity:.9}
+.btn.ghost{background:transparent; color:var(--ink); border-color:var(--line)}
+.btn.ghost:hover{border-color:var(--ink-2)}
+.btn svg{width:14px; height:14px; flex:none}
+
+.keychips{display:flex; flex-wrap:wrap; gap:8px; margin-bottom:40px}
+.chip{
+  display:inline-flex; align-items:baseline; gap:8px;
+  background:var(--surface); border:1px solid var(--line);
+  padding:7px 13px; border-radius:999px; font-size:12px; color:var(--ink-2);
+  box-shadow:var(--shadow);
+}
+.chip b{font-size:14px; color:var(--ink); font-weight:600; font-variant-numeric:tabular-nums}
+.chip.win b{color:var(--series-1)}
+.chip.warn b{color:var(--loss)}
+
+/* ── sections ──────────────────────────────────────────────────────────── */
+section{padding:52px 0; border-top:1px solid var(--line)}
+.eyebrow{
+  display:block; font-size:11.5px; letter-spacing:.14em; text-transform:uppercase;
+  color:var(--muted); margin-bottom:12px;
+}
+h2{font-size:clamp(25px,3.2vw,34px); margin-bottom:18px}
+h3{font-size:19px; margin:34px 0 10px; letter-spacing:-.01em}
+.lede{font-size:19px; color:var(--ink-2)}
+
+/* ── figures ───────────────────────────────────────────────────────────── */
+figure{margin:26px 0 0; }
+.card{
+  background:var(--surface); border:1px solid var(--line);
+  border-radius:var(--radius); box-shadow:var(--shadow); padding:20px;
+}
+figcaption{font-size:14px; color:var(--muted); line-height:1.55; margin-top:14px; max-width:74ch}
+figcaption .fignum{color:var(--ink-2); font-size:11.5px; letter-spacing:.08em; text-transform:uppercase; margin-right:8px}
+.teaser img{width:100%; height:auto; display:block; border-radius:8px}
+.scroll{overflow-x:auto}
+svg.diagram{display:block; width:100%; height:auto; min-width:640px; color:var(--ink-2)}
+
+/* ── tables ────────────────────────────────────────────────────────────── */
+table{border-collapse:collapse; width:100%; min-width:640px; font-size:14px}
+caption{text-align:left; font-size:14px; color:var(--muted); padding-bottom:12px}
+th{
+  font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted);
+  font-weight:500; text-align:right; padding:0 12px 9px; border-bottom:1px solid var(--line); white-space:nowrap;
+}
+th:first-child{text-align:left}
+td{
+  padding:9px 12px; border-bottom:1px solid var(--line-soft); text-align:right;
+  font-family:"IBM Plex Mono",monospace; font-size:13px; font-variant-numeric:tabular-nums; color:var(--ink-2);
+}
+td:first-child{text-align:left; font-family:Archivo,sans-serif; font-size:14px; color:var(--ink)}
+tr.group td{
+  font-family:"IBM Plex Mono",monospace; font-size:11px; letter-spacing:.1em; text-transform:uppercase;
+  color:var(--muted); padding-top:20px; border-bottom:none; text-align:left;
+}
+tr.ours td{background:var(--accent-wash); color:var(--ink)}
+tr.ours td:first-child{font-weight:600}
+tr.ours td:first-child::after{content:"ours"; font-family:"IBM Plex Mono",monospace; font-size:9.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--accent-ink); border:1px solid color-mix(in srgb, var(--accent) 55%, transparent); border-radius:999px; padding:2px 6px; margin-left:9px; vertical-align:1px}
+td.best{color:var(--ink); font-weight:600}
+td .loss{color:var(--loss)}
+td .ok{color:var(--series-1)}
+.tag{
+  display:inline-block; font-size:9.5px; letter-spacing:.09em; text-transform:uppercase;
+  padding:2px 7px; border-radius:999px; margin-left:8px; vertical-align:1px;
+  border:1px solid var(--line); color:var(--muted);
+}
+.tag.drops{color:var(--loss); border-color:color-mix(in srgb, var(--loss) 45%, transparent); background:var(--loss-wash)}
+
+/* ── coverage chart ────────────────────────────────────────────────────── */
+.legend{display:flex; flex-wrap:wrap; gap:18px; margin-bottom:22px; font-size:12.5px; color:var(--ink-2)}
+.legend span{display:inline-flex; align-items:center; gap:8px}
+.swatch{width:13px; height:13px; border-radius:3px; flex:none}
+.swatch.kept{background:var(--series-1)}
+.swatch.dropped{
+  border:1px solid var(--loss);
+  background:repeating-linear-gradient(135deg, color-mix(in srgb, var(--loss) 26%, transparent) 0 3px, transparent 3px 6px);
+}
+.covgroup{font-family:"IBM Plex Mono",monospace; font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); margin:22px 0 10px}
+.covgroup:first-of-type{margin-top:0}
+.covrow{display:grid; grid-template-columns:minmax(90px,148px) 1fr 62px; align-items:center; gap:14px; margin-bottom:9px}
+.covname{font-family:Archivo,sans-serif; font-size:13.5px; color:var(--ink-2); text-align:right}
+.covrow.ours .covname{color:var(--ink); font-weight:600}
+.track{
+  position:relative; height:26px; border-radius:5px; background:var(--surface-2);
+  border:1px solid var(--line-soft); overflow:hidden; display:flex;
+}
+.fill{
+  background:var(--series-1); height:100%; width:0;
+  transition:width .9s cubic-bezier(.22,.7,.2,1);
+  display:flex; align-items:center; justify-content:flex-end; padding-right:8px;
+  color:#fff; font-family:"IBM Plex Mono",monospace; font-size:11px; font-weight:500;
+}
+.gap{width:2px; height:100%; background:var(--surface); flex:none}
+.dropped{
+  flex:1; height:100%;
+  background:repeating-linear-gradient(135deg, color-mix(in srgb, var(--loss) 24%, transparent) 0 4px, transparent 4px 8px);
+}
+.covloss{font-family:"IBM Plex Mono",monospace; font-size:11.5px; color:var(--loss); font-variant-numeric:tabular-nums}
+.covfull{font-family:"IBM Plex Mono",monospace; font-size:11.5px; color:var(--muted)}
+@media (prefers-reduced-motion: reduce){ .fill{transition:none} html{scroll-behavior:auto} }
+
+/* ── stat tiles ────────────────────────────────────────────────────────── */
+.tiles{display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:14px; margin-top:26px}
+.tile{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:18px 20px; box-shadow:var(--shadow)}
+.tile .n{font-family:Archivo,sans-serif; font-weight:700; font-size:34px; letter-spacing:-.03em; font-variant-numeric:tabular-nums; line-height:1.05}
+.tile .n.win{color:var(--series-1)}
+.tile .n.warn{color:var(--loss)}
+.tile .k{font-family:"IBM Plex Mono",monospace; font-size:11px; letter-spacing:.09em; text-transform:uppercase; color:var(--muted); margin-top:8px}
+.tile .d{font-size:14px; color:var(--ink-2); margin-top:8px; line-height:1.5}
+
+/* ── code / algorithm ──────────────────────────────────────────────────── */
+pre{
+  margin:0; padding:18px 20px; overflow-x:auto; font-size:12.5px; line-height:1.75;
+  background:var(--surface-2); border:1px solid var(--line); border-radius:var(--radius); color:var(--ink-2);
+}
+pre b{color:var(--ink); font-weight:600}
+pre .cmt{color:var(--muted)}
+pre .hl{color:var(--accent-ink); font-weight:600}
+.copywrap{position:relative}
+.copybtn{
+  position:absolute; top:10px; right:10px; font-family:"IBM Plex Mono",monospace; font-size:11px;
+  padding:6px 11px; border-radius:999px; border:1px solid var(--line);
+  background:var(--surface); color:var(--ink-2); cursor:pointer;
+}
+.copybtn:hover{color:var(--ink); border-color:var(--ink-2)}
+
+details{border-top:1px solid var(--line-soft); padding:16px 0}
+summary{cursor:pointer; font-family:Archivo,sans-serif; font-weight:600; font-size:16px; list-style:none; display:flex; align-items:center; gap:10px}
+summary::-webkit-details-marker{display:none}
+summary::before{content:"+"; font-family:"IBM Plex Mono",monospace; color:var(--accent-ink); font-size:15px}
+details[open] summary::before{content:"–"}
+details .body{padding-top:16px}
+
+.note{
+  border-left:2px solid var(--accent); padding:2px 0 2px 18px; margin:26px 0;
+  font-size:17px; color:var(--ink-2);
+}
+ul.clean{list-style:none; padding:0; margin:18px 0 0; display:grid; gap:12px}
+ul.clean li{display:flex; gap:12px; font-size:16px; color:var(--ink-2); line-height:1.55}
+ul.clean li::before{content:""; width:6px; height:6px; border-radius:50%; background:var(--accent); flex:none; margin-top:11px}
+
+footer{padding:44px 0 60px; border-top:1px solid var(--line); color:var(--muted); font-size:13.5px}
+footer .wrap{display:flex; flex-wrap:wrap; gap:14px; justify-content:space-between}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="wrap">
+    <div class="mark">Graph<span>Reduce</span></div>
+    <nav class="topnav">
+      <a href="#abstract">Abstract</a>
+      <a href="#task">Task</a>
+      <a href="#method">Method</a>
+      <a href="#results">Results</a>
+      <a href="#coverage">Coverage</a>
+      <a href="#ablations">Ablations</a>
+      <a href="#bibtex">BibTeX</a>
+    </nav>
+  </div>
+</div>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="venue"><span class="dot"></span>EMNLP 2026 Industry Track · Accepted (Poster)</div>
+    <h1 class="title"><em>GraphReduce</em>: Coverage-Preserving LLM Aggregation for E-commerce Review Insights</h1>
+    <p class="subtitle">Thousands of review tuples become a ranked list of product insights — and every piece of evidence stays attached to the insight it supports.</p>
+
+    <div class="authors">
+      <a href="https://scholar.google.com/citations?user=jVrbKeUAAAAJ" target="_blank" rel="noopener"><b>Hao Jiang</b></a>
+      <a href="https://lixin.ai/" target="_blank" rel="noopener"><b>Xin Li</b></a>
+      <a href="./"><b>Yichi Zhang</b></a>
+      <a href="https://scholar.google.com/citations?user=D_S41X4AAAAJ" target="_blank" rel="noopener"><b>Weisi Lin</b></a>
+    </div>
+    <div class="affil">Nanyang Technological University, Singapore</div>
+
+    <div class="btnrow">
+      <a class="btn" href="static/paper/graphreduce.pdf">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4 1.5h5l3.5 3.5v9.5H4z"/><path d="M9 1.5V5h3.5"/></svg>
+        Paper (PDF)
+      </a>
+      <a class="btn ghost" href="https://github.com/GraphReduce/GraphReduce">
+        <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 .5a7.5 7.5 0 0 0-2.37 14.62c.37.07.5-.16.5-.36v-1.3c-2.09.45-2.53-1-2.53-1-.34-.87-.83-1.1-.83-1.1-.68-.47.05-.46.05-.46.75.05 1.15.77 1.15.77.67 1.15 1.76.82 2.19.63.07-.49.26-.82.48-1.01-1.67-.19-3.42-.84-3.42-3.72 0-.82.29-1.5.77-2.02-.08-.19-.34-.95.07-1.98 0 0 .63-.2 2.06.77a7.1 7.1 0 0 1 3.75 0c1.43-.97 2.06-.77 2.06-.77.41 1.03.15 1.79.08 1.98.48.52.77 1.2.77 2.02 0 2.89-1.76 3.53-3.43 3.71.27.23.51.69.51 1.39v2.06c0 .2.13.44.51.36A7.5 7.5 0 0 0 8 .5Z"/></svg>
+        Code
+      </a>
+      <a class="btn ghost" href="#bibtex">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M2.5 2.5h11v11h-11z"/><path d="M5 5.5h6M5 8h6M5 10.5h3.5"/></svg>
+        BibTeX
+      </a>
+    </div>
+
+    <div class="keychips">
+      <span class="chip win"><b>100%</b> tuple coverage</span>
+      <span class="chip win"><b>0</b> duplicate assignments</span>
+      <span class="chip"><b>+0.034 – 0.056</b> recall@10 over the best lossless baseline</span>
+      <span class="chip warn"><b>22.8%</b> coverage kept by a flat LLM at N ≈ 1,500</span>
+    </div>
+
+    <figure class="teaser">
+      <div class="card"><img src="static/images/teaser.jpg" alt="Two mobile product detail page screenshots: a review section with insight chips such as Fit 48, Lightweight 32, Comfortable 21, and a reviews page filtered to the reviews behind one chip." loading="eager" width="1400" height="1658"></div>
+      <figcaption><span class="fignum">Figure 1</span> The deployed setting. A product detail page can surface only a handful of insight chips, but every chip carries a count — and tapping it must show the reviews that back it up. That second requirement, <em>member traceability</em>, is what this paper is about.</figcaption>
+    </figure>
+  </div>
+</header>
+
+<section id="abstract">
+  <div class="wrap">
+    <span class="eyebrow">Abstract</span>
+    <div class="prose">
+      <p>In e-commerce, product detail pages (PDPs) often contain hundreds or thousands of customer reviews, yet the interface can surface only a small set of concise and reliable insights. A useful review aggregation system must therefore abstract recurring themes while preserving which reviews support each insight. We study this problem as <b>structured review-insight mining</b>: review-level tuples are first extracted and then aggregated into ranked product-level insight clusters with explicit member traceability.</p>
+      <p>We propose <b>GraphReduce</b>, a coverage-preserving framework for product-scale review insight aggregation. It combines a contrastively trained projection layer over frozen sentence embeddings, graph-based clustering on local neighborhood structure, and an LLM reducer/ranker for naming and ordering canonical clusters. By keeping membership accounting outside the generative step, GraphReduce preserves complete tuple coverage and avoids a common failure mode of direct LLM summarization: producing plausible high-level themes while silently dropping long-tail evidence.</p>
+      <p>Across three product-category benchmarks, GraphReduce improves recovery of gold insight clusters over strong lossless embedding-based baselines while maintaining comparable ranking quality. We further show that flat LLM and topic-modeling baselines can appear competitive under ranking metrics despite omitting substantial input evidence, and that an anti-copy reinforcement objective improves the quality of upstream tuple extraction.</p>
+    </div>
+  </div>
+</section>
+
+<section id="task">
+  <div class="wrap">
+    <span class="eyebrow">The task</span>
+    <h2>Two questions, not one</h2>
+    <div class="prose">
+      <p>Most opinion summarization work answers <b>what should a summary say?</b> A deployed PDP insight system has to answer a second question at the same time: <b>which reviews support each displayed insight?</b> Without explicit member traceability, a system can generate fluent, useful-looking themes while silently ignoring the long-tail evidence needed for user trust, analytics, and auditability.</p>
+      <p>So we formulate the problem in two stages. Stage&nbsp;1 converts each review into one or more structured tuples — an abstracted insight, an aspect, a sentiment label, a language tag, and the supporting review span. Stage&nbsp;2 groups the tuples of one product into a ranked list of canonical insight clusters, each with a human-readable description and the <em>complete</em> set of member tuple ids.</p>
+    </div>
+    <p class="note">That coverage requirement changes the nature of the task. A method that emits only salient head themes can score well on NDCG while discarding the evidence that downstream analysis, verification, and audits depend on. Ranking quality and evidence accounting have to be measured separately.</p>
+    <ul class="clean">
+      <li><b>Task and benchmark.</b>&nbsp;Product review insight mining as ranked clustering with explicit member-id coverage, evaluated on three e-commerce categories with ranking, recovery, coverage and duplicate-assignment metrics.</li>
+      <li><b>Method.</b>&nbsp;GraphReduce — projection + graph clustering + LLM reduction — which preserves member coverage by construction while producing canonical ranked insight clusters.</li>
+      <li><b>Findings.</b>&nbsp;Better gold-cluster recovery than strong lossless baselines at parity NDCG; evidence that flat LLM and topic-modeling baselines look competitive only because coverage goes unmeasured; and an anti-copy RL objective that lifts the upstream extractor from 59.3% to 93.1% production quality.</li>
+    </ul>
+  </div>
+</section>
+
+<section id="method">
+  <div class="wrap">
+    <span class="eyebrow">Method</span>
+    <h2>Separate the language from the bookkeeping</h2>
+    <div class="prose">
+      <p>A direct LLM aggregation prompt has to do three jobs at once: decide which insights are salient, write their descriptions, and return the exact set of member ids for each cluster. GraphReduce splits those jobs apart. The model is used where linguistic abstraction is genuinely needed — naming a group, ordering the final list — while membership is computed outside the model as a graph operation and a set union.</p>
+    </div>
+
+    <figure>
+      <div class="card scroll">
+        <svg class="diagram" viewBox="0 0 1000 300" role="img" aria-label="GraphReduce pipeline: review tuples are embedded and projected, partitioned by a k-nearest-neighbour graph and spectral clustering, then named and ranked by an LLM, while member ids travel a separate deterministic path of set unions that never enters a prompt.">
+          <defs>
+            <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0 0 L10 5 L0 10 z" fill="currentColor"/>
+            </marker>
+            <marker id="ahb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0 0 L10 5 L0 10 z" fill="var(--series-1)"/>
+            </marker>
+          </defs>
+
+          <!-- loop -->
+          <g color="var(--muted)">
+            <path d="M677 70 C 677 26, 459 26, 459 70" fill="none" stroke="currentColor" stroke-width="1.4" stroke-dasharray="5 4" marker-end="url(#ah)"/>
+            <text x="568" y="22" text-anchor="middle" font-family="'IBM Plex Mono',monospace" font-size="10.5" fill="currentColor">while |pool| &gt; K</text>
+          </g>
+
+          <!-- lane labels -->
+          <text x="156" y="56" font-family="'IBM Plex Mono',monospace" font-size="10" letter-spacing="1.4" fill="var(--muted)">LANGUAGE — THE LLM NAMES AND RANKS</text>
+          <text x="156" y="206" font-family="'IBM Plex Mono',monospace" font-size="10" letter-spacing="1.4" fill="var(--series-1)">MEMBERSHIP — DETERMINISTIC, NEVER IN A PROMPT</text>
+          <line x1="10" y1="176" x2="990" y2="176" stroke="var(--line)" stroke-width="1" stroke-dasharray="2 5"/>
+
+          <!-- input -->
+          <rect x="10" y="70" width="130" height="212" rx="9" fill="var(--surface-2)" stroke="var(--line)"/>
+          <text x="75" y="167" text-anchor="middle" font-family="Archivo,sans-serif" font-size="13" font-weight="600" fill="var(--ink)">N review tuples</text>
+          <text x="75" y="185" text-anchor="middle" font-family="'IBM Plex Mono',monospace" font-size="10.5" fill="var(--muted)">one product</text>
+
+          <!-- lane A boxes -->
+          <g>
+            <rect x="156" y="70" width="170" height="66" rx="9" fill="var(--surface)" stroke="var(--line)"/>
+            <text x="241" y="98" text-anchor="middle" font-family="Archivo,sans-serif" font-size="13" font-weight="600" fill="var(--ink)">Frozen encoder</text>
+            <text x="241" y="116" text-anchor="middle" font-family="'IBM Plex Mono',monospace" font-size="10.5" fill="var(--muted)">BGE-small + ProjHead</text>
+
+            <rect x="374" y="70" width="170" height="66" rx="9" fill="var(--surface)" stroke="var(--line)"/>
+            <text x="459" y="98" text-anchor="middle" font-family="Archivo,sans-serif" font-size="13" font-weight="600" fill="var(--ink)">kNN graph + spectral</text>
+            <text x="459" y="116" text-anchor="middle" font-family="'IBM Plex Mono',monospace" font-size="10.5" fill="var(--muted)">hard partition</text>
+
+            <rect x="592" y="70" width="170" height="66" rx="9" fill="var(--surface)" stroke="var(--line)"/>
+            <text x="677" y="98" text-anchor="middle" font-family="Archivo,sans-serif" font-size="13" font-weight="600" fill="var(--ink)">LLM reducer</text>
+            <text x="677" y="116" text-anchor="middle" font-family="'IBM Plex Mono',monospace" font-size="10.5" fill="var(--muted)">names a group, B ≤ 200</text>
+
+            <rect x="810" y="70" width="170" height="66" rx="9" fill="var(--surface)" stroke="var(--line)"/>
+            <text x="895" y="98" text-anchor="middle" font-family="Archivo,sans-serif" font-size="13" font-weight="600" fill="var(--ink)">LLM ranker</text>
+            <text x="895" y="116" text-anchor="middle" font-family="'IBM Plex Mono',monospace" font-size="10.5" fill="var(--muted)">orders the final K</text>
+          </g>
+          <g color="var(--ink-2)" stroke="currentColor" stroke-width="1.4" fill="none">
+            <line x1="140" y1="103" x2="150" y2="103" marker-end="url(#ah)"/>
+            <line x1="326" y1="103" x2="368" y2="103" marker-end="url(#ah)"/>
+            <line x1="544" y1="103" x2="586" y2="103" marker-end="url(#ah)"/>
+            <line x1="762" y1="103" x2="804" y2="103" marker-end="url(#ah)"/>
+          </g>
+          <g font-family="'IBM Plex Mono',monospace" font-size="9.5" fill="var(--muted)" text-anchor="middle">
+            <text x="347" y="95">z</text>
+            <text x="565" y="95">C_j</text>
+            <text x="783" y="95">pool</text>
+          </g>
+
+          <!-- lane B boxes -->
+          <g>
+            <rect x="156" y="220" width="170" height="62" rx="9" fill="var(--surface)" stroke="var(--series-1)" stroke-opacity=".55"/>
+            <text x="241" y="246" text-anchor="middle" font-family="Archivo,sans-serif" font-size="13" font-weight="600" fill="var(--ink)">Row-id sets</text>
+            <text x="241" y="264" text-anchor="middle" font-family="'IBM Plex Mono',monospace" font-size="10.5" fill="var(--muted)">{i} per tuple</text>
+
+            <rect x="592" y="220" width="170" height="62" rx="9" fill="var(--surface)" stroke="var(--series-1)" stroke-opacity=".55"/>
+            <text x="677" y="246" text-anchor="middle" font-family="Archivo,sans-serif" font-size="13" font-weight="600" fill="var(--ink)">Set union</text>
+            <text x="677" y="264" text-anchor="middle" font-family="'IBM Plex Mono',monospace" font-size="10.5" fill="var(--muted)">R_j = ∪ R_u</text>
+
+            <rect x="810" y="220" width="170" height="62" rx="9" fill="var(--surface)" stroke="var(--series-1)" stroke-opacity=".55"/>
+            <text x="895" y="246" text-anchor="middle" font-family="Archivo,sans-serif" font-size="13" font-weight="600" fill="var(--ink)">One cluster each</text>
+            <text x="895" y="264" text-anchor="middle" font-family="'IBM Plex Mono',monospace" font-size="10.5" fill="var(--series-1)">100% cov · 0 dup</text>
+          </g>
+          <g color="var(--series-1)" stroke="currentColor" stroke-width="1.4" fill="none">
+            <line x1="326" y1="251" x2="586" y2="251" marker-end="url(#ahb)"/>
+            <line x1="762" y1="251" x2="804" y2="251" marker-end="url(#ahb)"/>
+            <path d="M459 136 L459 244" stroke-dasharray="5 4" marker-end="url(#ahb)"/>
+          </g>
+          <g font-family="'IBM Plex Mono',monospace" font-size="9.5" fill="var(--series-1)">
+            <text x="390" y="243">ids carried verbatim</text>
+            <text x="468" y="196">partition C_j</text>
+            <text x="783" y="243" text-anchor="middle">R_j</text>
+          </g>
+        </svg>
+      </div>
+      <figcaption><span class="fignum">Figure 2</span> The two paths of GraphReduce. Above the line, tuples are embedded, projected and partitioned, and an LLM names each group and ranks the survivors; the pool shrinks one level at a time until it holds at most K items. Below the line, the ids travel separately: the same partition regroups them, a deterministic set union merges them upward, and they arrive attached to the output without ever appearing in a prompt. Because every clustering step returns a partition and every merge is a union, each input tuple ends in exactly one output cluster.</figcaption>
+    </figure>
+
+    <h3>Why this preserves coverage</h3>
+    <div class="prose">
+      <p>The guarantee is structural, not behavioural. It does not depend on the LLM reproducing row ids or keeping global state in text — it follows from two facts: each intermediate clustering step returns a <em>partition</em> of the current pool, and each parent's member set is the union of its children's. Cluster assignments are therefore auditable <em>before</em> any language is generated.</p>
+      <p>The cost is bounded too. Instead of one long-context prompt over all N tuples, GraphReduce issues one reducer call per bounded group plus a single ranking call, so the number of LLM calls is <span class="mono">1 + Σ<sub>ℓ</sub> max(K, ⌈N/B<sup>ℓ+1</sup>⌉)</span> — 10 to 11 calls per product in our experiments, each over at most B = 200 tuples.</p>
+    </div>
+
+    <figure>
+      <pre class="card" style="padding:20px 22px"><b>Algorithm 1 — GraphReduce inference</b>  <span class="cmt">member ids are unioned outside the LLM</span>
+
+<span class="cmt">input </span> tuples T = {t_i}, target size K, group size B, projection φ, reducer/ranker π, embedder Emb
+<span class="cmt">output</span> ranked clusters with complete member-id assignments
+
+ 1  x_i ← Emb(t_i);  z_i ← φ(x_i)                      <span class="cmt">for all t_i</span>
+ 2  pool ← {(t_i, z_i, {row_id_i})}
+ 3  <b>while</b> |pool| &gt; K <b>do</b>
+ 4      K′ ← max(K, ⌈|pool| / B⌉)
+ 5      {C_j} ← SpectralKNN({z}, K′)                   <span class="cmt">a partition — nothing is dropped</span>
+ 6      p_j ← π(C_j → NAME)                            <span class="hl">← the only generative step</span>
+ 7      R_j ← ∪_{u ∈ C_j} R_u;   z̄_j ← mean of z_u    <span class="hl">← deterministic bookkeeping</span>
+ 8      pool ← {(p_j, z̄_j, R_j)}
+ 9  <b>end while</b>
+10  (top_K, scores) ← π(pool → RANK, K)                <span class="cmt">ordering only; membership is fixed</span>
+11  <b>return</b> (top_K, scores, {R_j})</pre>
+    </figure>
+
+    <h3>Two learned pieces</h3>
+    <div class="prose">
+      <p><b>A projection head, not a fine-tuned encoder.</b> Generic sentence embeddings put <em>device compatibility</em>, <em>installation</em> and <em>performance</em> tuples near each other simply because the same product name appears in all three. We train a 384→256→128 MLP over a frozen BGE-small-en-v1.5 with an InfoNCE objective (τ = 0.07), drawing positives from the same gold cluster, hard negatives from <em>other clusters of the same product</em>, and easy negatives from other products. Under 200K trainable parameters; the encoder never moves.</p>
+      <p><b>K-way reducer supervision.</b> A reducer trained only on clean single-cluster examples learns that every input collapses to one phrase — and then over-merges the mixed groups an imperfect spectral partition actually produces. We synthesize supervision that matches inference: sample k ∈ {2, 3, 5, 7, 10} gold clusters from one product, draw at most 200 tuples from their union, shuffle, and train the model to recover the partition and its canonical names. The same checkpoint does the naming and the final ranking.</p>
+    </div>
+  </div>
+</section>
+
+<section id="results">
+  <div class="wrap">
+    <span class="eyebrow">Results</span>
+    <h2>Better recovery, complete evidence</h2>
+    <div class="prose">
+      <p>We evaluate on three held-out benchmarks built from Amazon product reviews — Software, Fashion and Baby — each with 100 products, product-level gold insight clusters and importance rankings. Every test product is excluded from both projection-head training and reducer fine-tuning.</p>
+      <p>Among methods with complete member coverage, GraphReduce has the highest recall@10 in all three categories, and the gains over <span class="mono">hier_agglom</span> are significant under paired Wilcoxon tests. NDCG is a different story: the difference sits inside bootstrap uncertainty, so we report ranking <em>parity</em>, not a ranking win. The gain is in gold-cluster recovery under exact evidence coverage.</p>
+    </div>
+
+    <figure>
+      <div class="card scroll">
+        <table>
+          <caption>Stage-2 aggregation on fixed 100-product held-out benchmarks. Coverage is the fraction of input tuple ids assigned to a predicted top-10 cluster; <span class="mono">dup</span> counts ids assigned to more than one cluster. Best value per column in bold. * / ** — recall gain over <span class="mono">hier_agglom</span> significant at p &lt; 0.05 / p &lt; 0.01.</caption>
+          <thead>
+            <tr><th>Strategy</th><th>recall@10</th><th>prec@10</th><th>NDCG@10</th><th>coverage</th><th>dup</th><th>LLM calls</th></tr>
+          </thead>
+          <tbody>
+            <tr class="group"><td colspan="7">Software · N ≤ 297</td></tr>
+            <tr><td>flat_llm<span class="tag drops">drops evidence</span></td><td>0.532</td><td>0.573</td><td>0.619</td><td><span class="loss">0.942 &nbsp;−5.8%</span></td><td><span class="loss">107</span></td><td>1.0</td></tr>
+            <tr><td>BERTopic<span class="tag drops">drops evidence</span></td><td>0.471</td><td class="best">0.723</td><td>0.599</td><td><span class="loss">0.883 &nbsp;−11.7%</span></td><td>0</td><td>0.0</td></tr>
+            <tr><td>hier_agglom (BGE raw)</td><td>0.575</td><td>0.520</td><td>0.648</td><td><span class="ok">1.000</span></td><td>0</td><td>10.0</td></tr>
+            <tr class="ours"><td>GraphReduce</td><td class="best">0.609*</td><td>0.551</td><td class="best">0.667</td><td><span class="ok">1.000</span></td><td>0</td><td>11.0</td></tr>
+
+            <tr class="group"><td colspan="7">Fashion · N ≤ 486</td></tr>
+            <tr><td>flat_llm<span class="tag drops">drops evidence</span></td><td>0.516</td><td>0.517</td><td>0.602</td><td><span class="loss">0.872 &nbsp;−12.8%</span></td><td><span class="loss">88</span></td><td>1.0</td></tr>
+            <tr><td>BERTopic<span class="tag drops">drops evidence</span></td><td class="best">0.562</td><td class="best">0.562</td><td class="best">0.631</td><td><span class="loss">0.601 &nbsp;−39.9%</span></td><td>0</td><td>0.0</td></tr>
+            <tr><td>hier_agglom (BGE raw)</td><td>0.502</td><td>0.502</td><td>0.561</td><td><span class="ok">1.000</span></td><td>0</td><td>10.0</td></tr>
+            <tr class="ours"><td>GraphReduce</td><td>0.536**</td><td>0.536</td><td>0.581</td><td><span class="ok">1.000</span></td><td>0</td><td>11.0</td></tr>
+
+            <tr class="group"><td colspan="7">Baby · N ≤ 500</td></tr>
+            <tr><td>flat_llm<span class="tag drops">drops evidence</span></td><td>0.618</td><td>0.539</td><td class="best">0.676</td><td><span class="loss">0.951 &nbsp;−4.9%</span></td><td><span class="loss">51</span></td><td>1.0</td></tr>
+            <tr><td>BERTopic<span class="tag drops">drops evidence</span></td><td>0.430</td><td class="best">0.792</td><td>0.575</td><td><span class="loss">0.879 &nbsp;−12.1%</span></td><td>0</td><td>0.0</td></tr>
+            <tr><td>hier_agglom (BGE raw)</td><td>0.618</td><td>0.465</td><td>0.652</td><td><span class="ok">1.000</span></td><td>0</td><td>10.0</td></tr>
+            <tr class="ours"><td>GraphReduce</td><td class="best">0.674**</td><td>0.508</td><td>0.669</td><td><span class="ok">1.000</span></td><td>0</td><td>10.6</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <figcaption><span class="fignum">Table 1</span> The two baselines that win a column also lose evidence: BERTopic's precision comes from discarding HDBSCAN outliers, and flat prompting's NDCG comes with 51–107 duplicated tuple ids. GraphReduce is the only method that improves recovery over the strongest lossless baseline while keeping the inventory intact.</figcaption>
+    </figure>
+
+    <figure>
+      <div class="card">
+        <svg viewBox="0 0 720 286" role="img" style="display:block;width:100%;height:auto;min-width:560px" aria-label="Paired differences between GraphReduce and hier_agglom with 95 percent confidence intervals: recall@10 gains of +0.034, +0.034 and +0.056 exclude zero in all three categories, while NDCG@10 gains of +0.020, +0.020 and +0.017 all cross zero.">
+          <!-- axis -->
+          <line x1="140" y1="248" x2="690" y2="248" stroke="var(--line)" stroke-width="1"/>
+          <g font-family="'IBM Plex Mono',monospace" font-size="10" fill="var(--muted)" text-anchor="middle">
+            <text x="218.6" y="266">−0.02</text><text x="297.1" y="266">0</text><text x="375.7" y="266">+0.02</text>
+            <text x="454.3" y="266">+0.04</text><text x="532.9" y="266">+0.06</text><text x="611.4" y="266">+0.08</text><text x="690" y="266">+0.10</text>
+          </g>
+          <line x1="297.1" y1="26" x2="297.1" y2="248" stroke="var(--ink-2)" stroke-width="1" stroke-dasharray="3 4"/>
+          <text x="297.1" y="18" text-anchor="middle" font-family="'IBM Plex Mono',monospace" font-size="10" fill="var(--ink-2)">no difference</text>
+
+          <g font-family="Archivo,sans-serif" font-size="12" fill="var(--ink-2)" text-anchor="end">
+            <text x="128" y="52">recall@10</text><text x="128" y="80">NDCG@10</text>
+            <text x="128" y="122">recall@10</text><text x="128" y="150">NDCG@10</text>
+            <text x="128" y="192">recall@10</text><text x="128" y="220">NDCG@10</text>
+          </g>
+          <g font-family="'IBM Plex Mono',monospace" font-size="9.5" letter-spacing="1" fill="var(--muted)" text-anchor="end">
+            <text x="128" y="36">SOFTWARE</text><text x="128" y="106">FASHION</text><text x="128" y="176">BABY</text>
+          </g>
+
+          <!-- Software -->
+          <g stroke="var(--series-1)" stroke-width="2">
+            <line x1="320.7" y1="48" x2="540.7" y2="48"/><line x1="320.7" y1="42" x2="320.7" y2="54"/><line x1="540.7" y1="42" x2="540.7" y2="54"/>
+          </g>
+          <circle cx="430.7" cy="48" r="5" fill="var(--series-1)" stroke="var(--surface)" stroke-width="2"/>
+          <text x="552" y="52" font-family="'IBM Plex Mono',monospace" font-size="10" fill="var(--ink-2)">+0.034 · p=0.015</text>
+          <g stroke="var(--series-2)" stroke-width="2">
+            <line x1="277.5" y1="76" x2="474" y2="76"/><line x1="277.5" y1="70" x2="277.5" y2="82"/><line x1="474" y1="70" x2="474" y2="82"/>
+          </g>
+          <circle cx="375.7" cy="76" r="5" fill="var(--series-2)" stroke="var(--surface)" stroke-width="2"/>
+          <text x="486" y="80" font-family="'IBM Plex Mono',monospace" font-size="10" fill="var(--muted)">+0.020 · n.s.</text>
+
+          <!-- Fashion -->
+          <g stroke="var(--series-1)" stroke-width="2">
+            <line x1="332.5" y1="118" x2="528.9" y2="118"/><line x1="332.5" y1="112" x2="332.5" y2="124"/><line x1="528.9" y1="112" x2="528.9" y2="124"/>
+          </g>
+          <circle cx="430.7" cy="118" r="5" fill="var(--series-1)" stroke="var(--surface)" stroke-width="2"/>
+          <text x="540" y="122" font-family="'IBM Plex Mono',monospace" font-size="10" fill="var(--ink-2)">+0.034 · p=0.010</text>
+          <g stroke="var(--series-2)" stroke-width="2">
+            <line x1="277.5" y1="146" x2="474" y2="146"/><line x1="277.5" y1="140" x2="277.5" y2="152"/><line x1="474" y1="140" x2="474" y2="152"/>
+          </g>
+          <circle cx="375.7" cy="146" r="5" fill="var(--series-2)" stroke="var(--surface)" stroke-width="2"/>
+          <text x="486" y="150" font-family="'IBM Plex Mono',monospace" font-size="10" fill="var(--muted)">+0.020 · n.s.</text>
+
+          <!-- Baby -->
+          <g stroke="var(--series-1)" stroke-width="2">
+            <line x1="387.5" y1="188" x2="650.7" y2="188"/><line x1="387.5" y1="182" x2="387.5" y2="194"/><line x1="650.7" y1="182" x2="650.7" y2="194"/>
+          </g>
+          <circle cx="517.1" cy="188" r="5" fill="var(--series-1)" stroke="var(--surface)" stroke-width="2"/>
+          <text x="662" y="204" font-family="'IBM Plex Mono',monospace" font-size="10" fill="var(--ink-2)" text-anchor="end">+0.056 · p=0.005</text>
+          <g stroke="var(--series-2)" stroke-width="2">
+            <line x1="234.3" y1="216" x2="501.4" y2="216"/><line x1="234.3" y1="210" x2="234.3" y2="222"/><line x1="501.4" y1="210" x2="501.4" y2="222"/>
+          </g>
+          <circle cx="363.9" cy="216" r="5" fill="var(--series-2)" stroke="var(--surface)" stroke-width="2"/>
+          <text x="513" y="220" font-family="'IBM Plex Mono',monospace" font-size="10" fill="var(--muted)">+0.017 · n.s.</text>
+        </svg>
+        <div class="legend" style="margin:16px 0 0">
+          <span><i aria-hidden="true" class="swatch" style="background:var(--series-1)"></i> recall@10 — CI excludes zero in all three categories</span>
+          <span><i aria-hidden="true" class="swatch" style="background:var(--series-2)"></i> NDCG@10 — CI crosses zero everywhere</span>
+        </div>
+      </div>
+      <figcaption><span class="fignum">Figure 3</span> Per-product paired differences, GraphReduce minus <span class="mono">hier_agglom</span> (n = 100 products per category). Bars are 95% confidence intervals from a deterministic 10,000-sample paired bootstrap; p-values are two-sided Wilcoxon signed-rank. This is the honest version of the claim: recovery improves, ordering holds steady.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<section id="coverage">
+  <div class="wrap">
+    <span class="eyebrow">Coverage</span>
+    <h2>What the ranking metrics don't show</h2>
+    <div class="prose">
+      <p>Coverage is the fraction of input tuple ids that end up inside some predicted top-10 cluster. It is not a diagnostic detail — it is the difference between an insight you can click through to its reviews and one you cannot. Across the 100-product benchmarks, the omitted inventory of the non-lossless baselines ranges from 4.9% to 39.9%.</p>
+    </div>
+
+    <figure>
+      <div class="card">
+        <div class="legend">
+          <span><i aria-hidden="true" class="swatch kept"></i> tuple ids assigned to an output cluster</span>
+          <span><i aria-hidden="true" class="swatch dropped"></i> tuple ids left unassigned</span>
+        </div>
+        <div id="covchart">
+          <p class="covgroup">Software · N ≤ 297</p>
+          <div class="covrow"><div class="covname">flat_llm</div><div class="track" title="flat_llm, Software: 94.2% coverage, 107 duplicate ids"><div class="fill" style="width:94.2%">94.2%</div><i class="gap"></i><div class="dropped"></div></div><div class="covloss">−5.8%</div></div>
+          <div class="covrow"><div class="covname">BERTopic</div><div class="track" title="BERTopic, Software: 88.3% coverage, HDBSCAN outliers discarded"><div class="fill" style="width:88.3%">88.3%</div><i class="gap"></i><div class="dropped"></div></div><div class="covloss">−11.7%</div></div>
+          <div class="covrow"><div class="covname">hier_agglom</div><div class="track" title="hier_agglom, Software: 100% coverage"><div class="fill" style="width:100%">100%</div></div><div class="covfull">0 lost</div></div>
+          <div class="covrow ours"><div class="covname">GraphReduce</div><div class="track" title="GraphReduce, Software: 100% coverage, 0 duplicates"><div class="fill" style="width:100%">100%</div></div><div class="covfull">0 lost</div></div>
+
+          <p class="covgroup">Fashion · N ≤ 486</p>
+          <div class="covrow"><div class="covname">flat_llm</div><div class="track" title="flat_llm, Fashion: 87.2% coverage, 88 duplicate ids"><div class="fill" style="width:87.2%">87.2%</div><i class="gap"></i><div class="dropped"></div></div><div class="covloss">−12.8%</div></div>
+          <div class="covrow"><div class="covname">BERTopic</div><div class="track" title="BERTopic, Fashion: 60.1% coverage, HDBSCAN outliers discarded"><div class="fill" style="width:60.1%">60.1%</div><i class="gap"></i><div class="dropped"></div></div><div class="covloss">−39.9%</div></div>
+          <div class="covrow"><div class="covname">hier_agglom</div><div class="track" title="hier_agglom, Fashion: 100% coverage"><div class="fill" style="width:100%">100%</div></div><div class="covfull">0 lost</div></div>
+          <div class="covrow ours"><div class="covname">GraphReduce</div><div class="track" title="GraphReduce, Fashion: 100% coverage, 0 duplicates"><div class="fill" style="width:100%">100%</div></div><div class="covfull">0 lost</div></div>
+
+          <p class="covgroup">Baby · N ≤ 500</p>
+          <div class="covrow"><div class="covname">flat_llm</div><div class="track" title="flat_llm, Baby: 95.1% coverage, 51 duplicate ids"><div class="fill" style="width:95.1%">95.1%</div><i class="gap"></i><div class="dropped"></div></div><div class="covloss">−4.9%</div></div>
+          <div class="covrow"><div class="covname">BERTopic</div><div class="track" title="BERTopic, Baby: 87.9% coverage, HDBSCAN outliers discarded"><div class="fill" style="width:87.9%">87.9%</div><i class="gap"></i><div class="dropped"></div></div><div class="covloss">−12.1%</div></div>
+          <div class="covrow"><div class="covname">hier_agglom</div><div class="track" title="hier_agglom, Baby: 100% coverage"><div class="fill" style="width:100%">100%</div></div><div class="covfull">0 lost</div></div>
+          <div class="covrow ours"><div class="covname">GraphReduce</div><div class="track" title="GraphReduce, Baby: 100% coverage, 0 duplicates"><div class="fill" style="width:100%">100%</div></div><div class="covfull">0 lost</div></div>
+        </div>
+      </div>
+      <figcaption><span class="fignum">Figure 4</span> Share of the extracted tuple inventory that survives aggregation. The hatched remainder is evidence the system named nothing for — invisible to recall, precision and NDCG alike.</figcaption>
+    </figure>
+
+    <h3>The stress test</h3>
+    <div class="prose">
+      <p>We pushed five Fashion products with N ∈ [800, 1700] tuples through the same pipelines. Five products is not a statistical claim; it is a look at what happens once the inventory outgrows the benchmark. Flat prompting still returns plausible head themes — and keeps 22.8% of the ids.</p>
+    </div>
+    <div class="tiles">
+      <div class="tile"><div class="n warn">22.8%</div><div class="k">flat_llm coverage</div><div class="d">Fluent output, three quarters of the evidence unaccounted for.</div></div>
+      <div class="tile"><div class="n win">100%</div><div class="k">GraphReduce coverage</div><div class="d">Unchanged by N: the guarantee is structural.</div></div>
+      <div class="tile"><div class="n">0</div><div class="k">duplicate ids</div><div class="d">Each tuple belongs to exactly one output cluster.</div></div>
+    </div>
+
+    <figure>
+      <div class="card scroll">
+        <table>
+          <caption>Large-N Fashion stress test — 5 products, N ≈ 1,500, all metrics @10.</caption>
+          <thead><tr><th>Strategy</th><th>recall</th><th>prec</th><th>NDCG</th><th>coverage</th><th>dup</th></tr></thead>
+          <tbody>
+            <tr><td>flat_llm<span class="tag drops">drops evidence</span></td><td class="best">0.480</td><td class="best">0.491</td><td>0.481</td><td><span class="loss">0.228</span></td><td><span class="loss">10</span></td></tr>
+            <tr><td>batch_direct<span class="tag drops">drops evidence</span></td><td>0.380</td><td>0.380</td><td>0.478</td><td><span class="loss">0.490</span></td><td>1</td></tr>
+            <tr><td>embed_cluster_llm</td><td>0.400</td><td>0.400</td><td class="best">0.486</td><td>0.977</td><td>0</td></tr>
+            <tr><td>embed_cluster</td><td>0.340</td><td>0.340</td><td>0.394</td><td><span class="ok">1.000</span></td><td>0</td></tr>
+            <tr class="ours"><td>GraphReduce</td><td>0.360</td><td>0.360</td><td>0.475</td><td><span class="ok">1.000</span></td><td>0</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <figcaption><span class="fignum">Table 2</span> At this scale the flat LLM tops recall and precision on the ten names it does produce, while assigning barely a fifth of the tuples. Treating review insight aggregation as one long-context generation problem produces output that looks coherent and does not preserve the input inventory.</figcaption>
+    </figure>
+
+    <h3>Losslessness is not slower</h3>
+    <div class="prose">
+      <p>GraphReduce issues 10–11 reducer calls per product against the flat LLM's single call, yet its median wall-clock is comparable or lower — each call runs over a bounded chunk of at most 200 tuples instead of one prompt over all N. On Software, 14.8 s median against flat prompting's 13.4 s and <span class="mono">hier_agglom</span>'s 16.4 s; on Baby, 26.7 s against 21.9 s and 29.2 s. BERTopic is far cheaper than either, at the price of 11.7–39.9% of the inventory.</p>
+    </div>
+  </div>
+</section>
+
+<section id="ablations">
+  <div class="wrap">
+    <span class="eyebrow">What matters, and what doesn't</span>
+    <h2>Three things the ablations settle</h2>
+    <ul class="clean">
+      <li><b>Adapting the geometry helps.</b>&nbsp;Swapping raw BGE for the contrastively trained projection head lifts recovery and ranking under an otherwise identical pipeline — generic semantic similarity is not aligned with product-level insight boundaries.</li>
+      <li><b>The hierarchy is not decoration.</b>&nbsp;The same projection with a simpler clustering backend is worse than raw embeddings with the full pipeline. Bounded reducer calls and the final ranking step are what turn local cluster structure into a stable top-K list.</li>
+      <li><b>More expressive learned clustering is not automatically better.</b>&nbsp;A GraphPool-style model (GraphSAGE + Gumbel-Softmax assignments) underperforms the explicit spectral partition — and under GRPO its training reward rose while NDCG drifted down. The local differentiable objective simply isn't the metric we care about, so we keep the learned component at representation projection and leave assignment to the graph.</li>
+    </ul>
+
+    <details>
+      <summary>Full ablation table — 30-product Software benchmark</summary>
+      <div class="body scroll">
+        <table>
+          <thead><tr><th>Configuration</th><th>recall@10</th><th>prec@10</th><th>NDCG@10</th><th>coverage</th></tr></thead>
+          <tbody>
+            <tr><td>BGE raw + sklearn agglom + size rank</td><td>0.595</td><td>0.507</td><td>0.651</td><td><span class="loss">0.947</span></td></tr>
+            <tr><td>BGE raw + chunk + spectral + LLM rank</td><td>0.589</td><td>0.503</td><td>0.680</td><td>1.000</td></tr>
+            <tr><td>+ ProjHead (Layer-2 pairs) + sklearn</td><td>0.533</td><td>0.522</td><td>0.606</td><td>1.000</td></tr>
+            <tr><td>+ ProjHead (Layer-2 pairs) + chunk + rank</td><td>0.632</td><td>0.533</td><td>0.686</td><td>1.000</td></tr>
+            <tr><td>+ ProjHead (Layer-3 pairs) + sklearn</td><td>0.529</td><td>0.532</td><td>0.602</td><td>1.000</td></tr>
+            <tr class="ours"><td>+ ProjHead (Layer-3 pairs) + chunk + rank</td><td class="best">0.652</td><td class="best">0.550</td><td class="best">0.700</td><td>1.000</td></tr>
+            <tr class="group"><td colspan="5">Projection dimension sweep, full pipeline</td></tr>
+            <tr><td>d = 64</td><td>0.622</td><td>0.527</td><td>0.678</td><td>1.000</td></tr>
+            <tr><td>d = 128</td><td>0.652</td><td>0.550</td><td>0.700</td><td>1.000</td></tr>
+            <tr><td>d = 256</td><td>0.628</td><td>0.533</td><td>0.680</td><td>1.000</td></tr>
+            <tr class="group"><td colspan="5">Training length sweep</td></tr>
+            <tr><td>epochs = 3</td><td>0.652</td><td>0.550</td><td>0.700</td><td>1.000</td></tr>
+            <tr><td>epochs = 5 (union L2 + L3 pairs)</td><td>0.618</td><td>0.523</td><td>0.676</td><td>1.000</td></tr>
+            <tr><td>epochs = 10</td><td>0.609</td><td>0.507</td><td>0.664</td><td>1.000</td></tr>
+            <tr class="group"><td colspan="5">Negative result — learned soft clustering</td></tr>
+            <tr><td>GraphPool (GraphSAGE)</td><td>0.460</td><td>0.390</td><td>0.518</td><td>1.000</td></tr>
+            <tr><td>GraphPool + GRPO</td><td>0.478</td><td>0.404</td><td>0.537</td><td>1.000</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </details>
+
+    <details>
+      <summary>Cost and latency per product</summary>
+      <div class="body scroll">
+        <table>
+          <caption>Median and 90th-percentile wall-clock per product, with the number of LLM calls.</caption>
+          <thead><tr><th>Strategy</th><th>LLM calls</th><th>median (s)</th><th>p90 (s)</th></tr></thead>
+          <tbody>
+            <tr class="group"><td colspan="4">Software</td></tr>
+            <tr><td>flat_llm</td><td>1.0</td><td>13.4</td><td>21.0</td></tr>
+            <tr><td>BERTopic</td><td>0.0</td><td class="best">0.2</td><td>0.3</td></tr>
+            <tr><td>hier_agglom</td><td>10.0</td><td>16.4</td><td>21.7</td></tr>
+            <tr class="ours"><td>GraphReduce</td><td>11.0</td><td>14.8</td><td>19.5</td></tr>
+            <tr class="group"><td colspan="4">Fashion</td></tr>
+            <tr><td>flat_llm</td><td>1.0</td><td>27.2</td><td>37.8</td></tr>
+            <tr><td>BERTopic</td><td>0.0</td><td class="best">0.6</td><td>1.1</td></tr>
+            <tr><td>hier_agglom</td><td>10.0</td><td>27.9</td><td>39.5</td></tr>
+            <tr class="ours"><td>GraphReduce</td><td>11.0</td><td>26.8</td><td>40.1</td></tr>
+            <tr class="group"><td colspan="4">Baby</td></tr>
+            <tr><td>flat_llm</td><td>1.0</td><td>21.9</td><td>34.5</td></tr>
+            <tr><td>BERTopic</td><td>0.0</td><td class="best">0.1</td><td>0.2</td></tr>
+            <tr><td>hier_agglom</td><td>10.0</td><td>29.2</td><td>37.8</td></tr>
+            <tr class="ours"><td>GraphReduce</td><td>10.6</td><td>26.7</td><td>32.8</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </details>
+  </div>
+</section>
+
+<section id="stage1">
+  <div class="wrap">
+    <span class="eyebrow">Upstream</span>
+    <h2>Teaching the extractor to stop copying</h2>
+    <div class="prose">
+      <p>Stage 1 turns a review into tuples: an abstracted insight, an aspect, a sentiment label, a language tag, and the verbatim span that grounds it. The dominant SFT failure is <b>slice copying</b> — the model satisfies grounding by putting the evidence span in the insight field too. The tuple is then perfectly grounded and not abstracted at all.</p>
+      <p>Our GRPO reward attacks exactly that. The per-tuple insight score starts at +1 and is clipped at −2 after four penalties: −1.5 if the insight equals the generated slice, −0.5 if it is a non-slice verbatim substring of the review, −0.5 if it is not 1–3 words, and −0.7 if it is a vague single token such as <em>good</em>. Auxiliary terms score aspect quality, slice validity, and sentiment/language membership; the insight term carries weight 5.0 in the final weighted sum.</p>
+    </div>
+    <figure>
+      <div class="card scroll">
+        <table>
+          <caption>Stage-1 extraction quality on 5,000 held-out Software reviews, judged 1–5 by Gemini 2.5 Pro. Production quality is the rate of overall ≥ 4.</caption>
+          <thead><tr><th>Model</th><th>overall ≥ 4</th><th>overall</th><th>correctness</th><th>completeness</th><th>diversity</th><th>abstraction</th></tr></thead>
+          <tbody>
+            <tr><td>base (Qwen3.5-9B)</td><td>59.3%</td><td>3.69</td><td>4.70</td><td>4.69</td><td>4.79</td><td>3.40</td></tr>
+            <tr><td>SFT (190K teacher labels)</td><td>88.7%</td><td>4.52</td><td>4.80</td><td>4.78</td><td>4.89</td><td>4.49</td></tr>
+            <tr><td>DPO (chosen = teacher, rejected = SFT)</td><td>90.8%</td><td>4.62</td><td class="best">4.85</td><td>4.80</td><td>4.94</td><td>4.64</td></tr>
+            <tr class="ours"><td>GRPO (anti-copy)</td><td class="best">93.1%</td><td class="best">4.71</td><td class="best">4.85</td><td class="best">4.82</td><td class="best">4.95</td><td class="best">4.78</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <figcaption><span class="fignum">Table 3</span> Correctness, completeness and diversity are near-saturated from SFT onward; the movement is in abstraction — 3.40 → 4.78 — which is the dimension the reward targets. Production quality rises from 59.3% to 93.1%.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<section id="qualitative">
+  <div class="wrap">
+    <span class="eyebrow">One product, up close</span>
+    <h2>Where it still goes wrong</h2>
+    <figure>
+      <div class="card scroll">
+        <table>
+          <caption>Top-3 cluster names for one Software product (asin B008BBB388, N = 57 tuples, 12 gold clusters).</caption>
+          <thead><tr><th>Method</th><th style="text-align:left">Top-3 themes</th></tr></thead>
+          <tbody>
+            <tr><td>flat_llm</td><td style="text-align:left">paid app · app crashes · gameplay</td></tr>
+            <tr><td>hier_agglom</td><td style="text-align:left">gameplay · inaccessible items · app crashes</td></tr>
+            <tr class="ours"><td>GraphReduce</td><td style="text-align:left">hidden object gameplay · device compatibility · paid app</td></tr>
+            <tr><td>Gold</td><td style="text-align:left">progression blocker · device compatibility · blue crystal inaccessible</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <figcaption><span class="fignum">Table 4</span> Not a clean win: GraphReduce recovers <em>device compatibility</em> and a more specific gameplay phrase, but misses the gold's fine-grained <em>blue crystal inaccessible</em>. Recall and coverage improve over raw embeddings while phrase aliasing keeps costing NDCG.</figcaption>
+    </figure>
+    <div class="prose">
+      <p>Manual analysis of low-NDCG predictions turns up four recurring failures. <b>Phrase aliasing</b> is the most common: two genuinely distinct clusters both get named <em>app crashes</em>, so only one can match the gold theme even when the member partition is sound. <b>Long-tail themes</b> compete with head themes for limited top-K slots. <b>Spectral over-merge</b> shows up when a product has few tuples — the fixed k = 20 graph is too dense below N ≈ 40. And some clusters have essentially correct member sets under an overly generic name.</p>
+      <p>The fixes those point to are concrete: adaptive graph degree, a diversity-aware ranking objective, a reducer that conditions on the names already chosen, and evaluation that matches semantics rather than phrase tokens.</p>
+    </div>
+  </div>
+</section>
+
+<section id="limitations">
+  <div class="wrap">
+    <span class="eyebrow">Limitations</span>
+    <h2>What this evaluation does not establish</h2>
+    <div class="prose">
+      <p><b>The product-level gold is LLM-assisted.</b> Gemini 2.5 Pro participates in importance scoring during gold construction and in evaluation. Held-out product splits guard against train/test leakage, but this is not an anti-circularity guarantee, and human audits with inter-annotator agreement are needed before treating the benchmark as a human gold standard.</p>
+      <p><b>Some axes are thin.</b> The large-N Fashion stress test covers five products. Stage-1 extraction is fully evaluated only on Software. And the phrase-token matching metric can miss semantic equivalence or over-credit generic aliases — the same weakness the qualitative analysis surfaces from the other direction.</p>
+      <p><b>On data.</b> All experiments use the publicly released Amazon product reviews, already de-identified at release. We collected no new human data, performed no re-identification, and release aggregate product-level insight clusters rather than user-level records.</p>
+    </div>
+  </div>
+</section>
+
+<section id="bibtex">
+  <div class="wrap">
+    <span class="eyebrow">Cite</span>
+    <h2>BibTeX</h2>
+    <div class="copywrap" style="margin-top:22px">
+      <button class="copybtn" id="copybtn" type="button">copy</button>
+      <pre id="bib">@inproceedings{graphreduce2026,
+  title     = {GraphReduce: Coverage-Preserving LLM Aggregation for
+               E-commerce Review Insights},
+  author    = {Jiang, Hao and Li, Xin and Zhang, Yichi and Lin, Weisi},
+  booktitle = {Proceedings of the 2026 Conference on Empirical Methods in
+               Natural Language Processing: Industry Track},
+  year      = {2026}
+}</pre>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <span>GraphReduce · EMNLP 2026 Industry Track · Nanyang Technological University</span>
+    <span><a href="static/paper/graphreduce.pdf">Paper</a> · <a href="https://github.com/GraphReduce/GraphReduce">Code</a></span>
+  </div>
+</footer>
+
+<script>
+(function(){
+  var btn = document.getElementById('copybtn');
+  if (btn) btn.addEventListener('click', function(){
+    var t = document.getElementById('bib').innerText;
+    navigator.clipboard.writeText(t).then(function(){
+      btn.textContent = 'copied';
+      setTimeout(function(){ btn.textContent = 'copy'; }, 1600);
+    }, function(){ btn.textContent = 'press ⌘C'; });
+  });
+
+  var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var chart = document.getElementById('covchart');
+  if (!chart || reduced || !('IntersectionObserver' in window)) return;
+  var fills = [].slice.call(chart.querySelectorAll('.fill'));
+  fills.forEach(function(f){ f.dataset.w = f.style.width; f.style.width = '0%'; });
+  var io = new IntersectionObserver(function(entries){
+    entries.forEach(function(e){
+      if (!e.isIntersecting) return;
+      fills.forEach(function(f, i){
+        setTimeout(function(){ f.style.width = f.dataset.w; }, i * 55);
+      });
+      io.disconnect();
+    });
+  }, { threshold: 0.25 });
+  io.observe(chart);
+})();
+</script>
+</body>
+</html>
