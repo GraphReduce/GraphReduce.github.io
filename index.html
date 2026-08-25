@@ -8,7 +8,8 @@
 <meta property="og:title" content="GraphReduce: Coverage-Preserving LLM Aggregation for E-commerce Review Insights">
 <meta property="og:description" content="Ranked, traceable product-level review insights with 100% tuple coverage and zero duplicate assignments. Jiang, Li, Zhang and Lin — EMNLP 2026 Industry Track.">
 <meta property="og:type" content="website">
-<meta property="og:image" content="static/images/teaser_small.jpg">
+<meta property="og:image" content="https://graphreduce.github.io/static/images/teaser_small.jpg">
+<meta property="og:url" content="https://graphreduce.github.io/">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -167,8 +168,11 @@ figure{margin:26px 0 0; }
 }
 figcaption{font-size:14px; color:var(--muted); line-height:1.55; margin-top:14px; max-width:74ch}
 figcaption .fignum{color:var(--ink-2); font-size:11.5px; letter-spacing:.08em; text-transform:uppercase; margin-right:8px}
-.teaser img{width:100%; height:auto; display:block; border-radius:8px}
-.scroll{overflow-x:auto}
+.teaser-grid{display:grid; grid-template-columns:1fr 1fr; gap:18px; align-items:start; max-width:780px; margin:0 auto}
+.teaser-half img{width:100%; height:auto; display:block; border-radius:8px}
+.shot{font-family:"IBM Plex Mono",monospace; font-size:11px; letter-spacing:.04em; color:var(--muted); margin:10px 0 0}
+.scroll{overflow-x:auto; -webkit-overflow-scrolling:touch}
+.swipe{display:none; font-family:"IBM Plex Mono",monospace; font-size:11px; letter-spacing:.06em; color:var(--muted); margin-top:10px}
 svg.diagram{display:block; width:100%; height:auto; min-width:640px; color:var(--ink-2)}
 
 /* ── tables ────────────────────────────────────────────────────────────── */
@@ -274,6 +278,52 @@ ul.clean{list-style:none; padding:0; margin:18px 0 0; display:grid; gap:12px}
 ul.clean li{display:flex; gap:12px; font-size:16px; color:var(--ink-2); line-height:1.55}
 ul.clean li::before{content:""; width:6px; height:6px; border-radius:50%; background:var(--accent); flex:none; margin-top:11px}
 
+@media (max-width: 760px){
+  body{font-size:16px; line-height:1.62}
+  .wrap{padding:0 16px}
+  .hero{padding:38px 0 4px}
+  section{padding:40px 0}
+  h1.title{font-size:clamp(26px, 7.4vw, 34px); max-width:none}
+  .subtitle{font-size:17px; margin:12px 0 24px}
+  .venue{margin-bottom:16px; font-size:10.5px; padding:5px 10px}
+  .authors{gap:4px 14px; font-size:15.5px}
+  .affil{margin-bottom:20px}
+  .btnrow{gap:8px; margin-bottom:26px}
+  .btn{padding:9px 14px; font-size:12px}
+  .keychips{margin-bottom:30px}
+  .chip{font-size:11.5px; padding:6px 11px}
+  h2{font-size:clamp(22px,6vw,27px)}
+  h3{font-size:17.5px; margin-top:28px}
+  .lede,.note{font-size:16.5px}
+  ul.clean li{font-size:15.5px}
+  .card{padding:13px; border-radius:12px}
+  .teaser-grid{grid-template-columns:1fr; gap:22px}
+  .shot{font-size:11.5px}
+  figure{margin-top:20px}
+  figcaption{font-size:13px; margin-top:11px}
+  pre{font-size:11px; padding:14px 15px; line-height:1.7}
+  .copybtn{top:8px; right:8px; padding:5px 9px; font-size:10.5px}
+  table{min-width:560px; font-size:13px}
+  td{padding:8px 9px; font-size:12px}
+  th{padding:0 9px 8px; font-size:10px}
+  .swipe{display:block}
+  .covrow{grid-template-columns:minmax(72px,104px) 1fr 52px; gap:9px; margin-bottom:8px}
+  .covname{font-size:12.5px}
+  .track{height:24px}
+  .covloss,.covfull{font-size:10.5px}
+  .legend{gap:10px 16px; font-size:12px; margin-bottom:16px}
+  .tile{padding:15px 16px}
+  .tile .n{font-size:29px}
+  .topbar .wrap{gap:12px; height:52px}
+  .topbar .mark{font-size:14px}
+  .topnav{gap:14px; -webkit-mask-image:linear-gradient(to right,#000 86%,transparent);
+          mask-image:linear-gradient(to right,#000 86%,transparent); padding-right:12px}
+  footer .wrap{flex-direction:column; gap:8px}
+}
+@media (max-width: 380px){
+  .covrow{grid-template-columns:64px 1fr 48px; gap:7px}
+  .covname{font-size:11.5px}
+}
 footer{padding:44px 0 60px; border-top:1px solid var(--line); color:var(--muted); font-size:13.5px}
 footer .wrap{display:flex; flex-wrap:wrap; gap:14px; justify-content:space-between}
 </style>
@@ -332,7 +382,18 @@ footer .wrap{display:flex; flex-wrap:wrap; gap:14px; justify-content:space-betwe
     </div>
 
     <figure class="teaser">
-      <div class="card"><img src="static/images/teaser.jpg" alt="Two mobile product detail page screenshots: a review section with insight chips such as Fit 48, Lightweight 32, Comfortable 21, and a reviews page filtered to the reviews behind one chip." loading="eager" width="1400" height="1658"></div>
+      <div class="card">
+        <div class="teaser-grid">
+          <div class="teaser-half">
+            <img src="static/images/teaser_a.jpg" alt="A product detail page review section showing insight chips: Includes visuals 50, Verified purchase 82, Fit 48, Lightweight 32, Comfortable 21, above the individual customer reviews." width="686" height="1589">
+            <p class="shot">1 — the insight chips a shopper sees, each with a count</p>
+          </div>
+          <div class="teaser-half">
+            <img src="static/images/teaser_b.jpg" alt="The reviews page filtered by one chip, showing the individual verified-purchase reviews that support it." width="675" height="1336">
+            <p class="shot">2 — tapping one has to show the reviews behind it</p>
+          </div>
+        </div>
+      </div>
       <figcaption><span class="fignum">Figure 1</span> The deployed setting. A product detail page can surface only a handful of insight chips, but every chip carries a count — and tapping it must show the reviews that back it up. That second requirement, <em>member traceability</em>, is what this paper is about.</figcaption>
     </figure>
   </div>
@@ -458,6 +519,7 @@ footer .wrap{display:flex; flex-wrap:wrap; gap:14px; justify-content:space-betwe
           </g>
         </svg>
       </div>
+      <p class="swipe">← swipe the diagram →</p>
       <figcaption><span class="fignum">Figure 2</span> The two paths of GraphReduce. Above the line, tuples are embedded, projected and partitioned, and an LLM names each group and ranks the survivors; the pool shrinks one level at a time until it holds at most K items. Below the line, the ids travel separately: the same partition regroups them, a deterministic set union merges them upward, and they arrive attached to the output without ever appearing in a prompt. Because every clustering step returns a partition and every merge is a union, each input tuple ends in exactly one output cluster.</figcaption>
     </figure>
 
@@ -531,11 +593,13 @@ footer .wrap{display:flex; flex-wrap:wrap; gap:14px; justify-content:space-betwe
           </tbody>
         </table>
       </div>
+      <p class="swipe">← swipe the table →</p>
       <figcaption><span class="fignum">Table 1</span> The two baselines that win a column also lose evidence: BERTopic's precision comes from discarding HDBSCAN outliers, and flat prompting's NDCG comes with 51–107 duplicated tuple ids. GraphReduce is the only method that improves recovery over the strongest lossless baseline while keeping the inventory intact.</figcaption>
     </figure>
 
     <figure>
       <div class="card">
+        <div class="scroll">
         <svg viewBox="0 0 720 286" role="img" style="display:block;width:100%;height:auto;min-width:560px" aria-label="Paired differences between GraphReduce and hier_agglom with 95 percent confidence intervals: recall@10 gains of +0.034, +0.034 and +0.056 exclude zero in all three categories, while NDCG@10 gains of +0.020, +0.020 and +0.017 all cross zero.">
           <!-- axis -->
           <line x1="140" y1="248" x2="690" y2="248" stroke="var(--line)" stroke-width="1"/>
@@ -591,11 +655,13 @@ footer .wrap{display:flex; flex-wrap:wrap; gap:14px; justify-content:space-betwe
           <circle cx="363.9" cy="216" r="5" fill="var(--series-2)" stroke="var(--surface)" stroke-width="2"/>
           <text x="513" y="220" font-family="'IBM Plex Mono',monospace" font-size="10" fill="var(--muted)">+0.017 · n.s.</text>
         </svg>
+        </div>
         <div class="legend" style="margin:16px 0 0">
           <span><i aria-hidden="true" class="swatch" style="background:var(--series-1)"></i> recall@10 — CI excludes zero in all three categories</span>
           <span><i aria-hidden="true" class="swatch" style="background:var(--series-2)"></i> NDCG@10 — CI crosses zero everywhere</span>
         </div>
       </div>
+      <p class="swipe">← swipe the chart →</p>
       <figcaption><span class="fignum">Figure 3</span> Per-product paired differences, GraphReduce minus <span class="mono">hier_agglom</span> (n = 100 products per category). Bars are 95% confidence intervals from a deterministic 10,000-sample paired bootstrap; p-values are two-sided Wilcoxon signed-rank. This is the honest version of the claim: recovery improves, ordering holds steady.</figcaption>
     </figure>
   </div>
@@ -662,6 +728,7 @@ footer .wrap{display:flex; flex-wrap:wrap; gap:14px; justify-content:space-betwe
           </tbody>
         </table>
       </div>
+      <p class="swipe">← swipe the table →</p>
       <figcaption><span class="fignum">Table 2</span> At this scale the flat LLM tops recall and precision on the ten names it does produce, while assigning barely a fifth of the tuples. Treating review insight aggregation as one long-context generation problem produces output that looks coherent and does not preserve the input inventory.</figcaption>
     </figure>
 
@@ -707,6 +774,7 @@ footer .wrap{display:flex; flex-wrap:wrap; gap:14px; justify-content:space-betwe
             <tr><td>GraphPool + GRPO</td><td>0.478</td><td>0.404</td><td>0.537</td><td>1.000</td></tr>
           </tbody>
         </table>
+        <p class="swipe">← swipe the table →</p>
       </div>
     </details>
 
@@ -734,6 +802,7 @@ footer .wrap{display:flex; flex-wrap:wrap; gap:14px; justify-content:space-betwe
             <tr class="ours"><td>GraphReduce</td><td>10.6</td><td>26.7</td><td>32.8</td></tr>
           </tbody>
         </table>
+        <p class="swipe">← swipe the table →</p>
       </div>
     </details>
   </div>
@@ -760,6 +829,7 @@ footer .wrap{display:flex; flex-wrap:wrap; gap:14px; justify-content:space-betwe
           </tbody>
         </table>
       </div>
+      <p class="swipe">← swipe the table →</p>
       <figcaption><span class="fignum">Table 3</span> Correctness, completeness and diversity are near-saturated from SFT onward; the movement is in abstraction — 3.40 → 4.78 — which is the dimension the reward targets. Production quality rises from 59.3% to 93.1%.</figcaption>
     </figure>
   </div>
@@ -782,6 +852,7 @@ footer .wrap{display:flex; flex-wrap:wrap; gap:14px; justify-content:space-betwe
           </tbody>
         </table>
       </div>
+      <p class="swipe">← swipe the table →</p>
       <figcaption><span class="fignum">Table 4</span> Not a clean win: GraphReduce recovers <em>device compatibility</em> and a more specific gameplay phrase, but misses the gold's fine-grained <em>blue crystal inaccessible</em>. Recall and coverage improve over raw embeddings while phrase aliasing keeps costing NDCG.</figcaption>
     </figure>
     <div class="prose">
